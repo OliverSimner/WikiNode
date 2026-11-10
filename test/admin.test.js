@@ -54,6 +54,15 @@ test('admin setup, account roles, and page management are protected', async (con
     body: JSON.stringify(body)
   });
 
+  const previewResponse = await request('/api/preview', jsonOptions({
+    content: '# Safe heading\n\n**Safe bold**\n\n<img src=x onerror=alert(1)>'
+  }));
+  assert.equal(previewResponse.status, 200);
+  const preview = await previewResponse.json();
+  assert.match(preview.html, /<h1>Safe heading<\/h1>/);
+  assert.match(preview.html, /<strong>Safe bold<\/strong>/);
+  assert.doesNotMatch(preview.html, /onerror/i);
+
   const status = await (await request('/api/auth/status')).json();
   assert.equal(status.hasAccounts, false);
   assert.equal((await request('/api/admin/overview')).status, 401);
