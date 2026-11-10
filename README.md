@@ -29,6 +29,8 @@ WikiNode is a lightweight starting point for a community wiki, not a feature-for
 
 This release uses JSON files rather than a transactional database. Run one Node.js process with a persistent data directory; multiple workers or replicas can overwrite each other's updates. Login throttling is in memory and is also per process. There is no email verification, password reset, public registration, or account recovery. Keep a tested backup of `data/` before upgrading or deploying.
 
+On Vercel, WikiNode uses `/tmp` so the function can start, but that directory is temporary and may be cleared or differ between function instances. Do not use this mode for a real wiki. Set `SESSION_SECRET` in Vercel to a stable 96-character hexadecimal value (generate one with `openssl rand -hex 48`) so session cookies can be verified consistently. For persistent Vercel use, replace the JSON file store with a managed database.
+
 For an HTTPS deployment behind one trusted reverse proxy, set `NODE_ENV=production` and `TRUST_PROXY=1` so secure session cookies work. Set `TRUST_PROXY` to the correct trusted hop count for your topology; do not trust forwarded headers from untrusted clients. For example:
 
 ```sh

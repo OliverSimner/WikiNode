@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
@@ -10,7 +11,11 @@ const sanitizeHtml = require('sanitize-html');
 
 const app = express();
 const port = process.env.PORT === undefined ? 3000 : Number(process.env.PORT);
-const dataDirectory = path.resolve(process.env.WIKINODE_DATA_DIR || path.join(__dirname, 'data'));
+const isVercel = process.env.VERCEL === '1';
+const defaultDataDirectory = isVercel
+  ? path.join(os.tmpdir(), 'wikinode-data')
+  : path.join(__dirname, 'data');
+const dataDirectory = path.resolve(process.env.WIKINODE_DATA_DIR || defaultDataDirectory);
 const dataFile = path.join(dataDirectory, 'wiki.json');
 const usersFile = path.join(dataDirectory, 'users.json');
 const sessionKeyFile = path.join(dataDirectory, 'session-key');
@@ -128,14 +133,21 @@ if (!fs.existsSync(usersFile)) writeUsers({});
 if (!fs.existsSync(sessionKeyFile)) {
   fs.writeFileSync(sessionKeyFile, crypto.randomBytes(48).toString('hex'), { mode: 0o600 });
 }
-let sessionKey = fs.readFileSync(sessionKeyFile, 'utf8').trim();
+let sessionKey = process.env.SESSION_SECRET || fs.readFileSync(sessionKeyFile, 'utf8').trim();
 if (!/^[a-f0-9]{96}$/i.test(sessionKey)) {
+  if (process.env.SESSION_SECRET) {
+    throw new Error('SESSION_SECRET must be exactly 96 hexadecimal characters (generate with: openssl rand -hex 48).');
+  }
   sessionKey = crypto.randomBytes(48).toString('hex');
   fs.writeFileSync(sessionKeyFile, sessionKey, { mode: 0o600 });
 }
 if (process.platform !== 'win32') {
   fs.chmodSync(usersFile, 0o600);
-  fs.chmodSync(sessionKeyFile, 0o600);
+  if (!process.env.SESSION_SECRET) fs.chmodSync(sessionKeyFile, 0o600);
+}
+if (isVercel) {
+  console.warn('WikiNode is using Vercel /tmp storage. Pages and accounts are temporary; configure external storage before production use.');
+  if (!process.env.SESSION_SECRET) console.warn('Set SESSION_SECRET in Vercel to keep session signing consistent across function instances.');
 }
 if (!fs.existsSync(dataFile)) {
   const now = new Date().toISOString();
