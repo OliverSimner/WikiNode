@@ -5,7 +5,7 @@ const crypto = require('node:crypto');
 const { promisify } = require('node:util');
 const cookieSession = require('cookie-session');
 const express = require('express');
-const { rateLimit } = require('express-rate-limit');
+const { ipKeyGenerator, rateLimit } = require('express-rate-limit');
 const { marked } = require('marked');
 const sanitizeHtml = require('sanitize-html');
 
@@ -180,16 +180,19 @@ if (!fs.existsSync(dataFile)) {
 }
 
 app.use(express.json({ limit: '1mb' }));
-if (process.env.TRUST_PROXY) {
-  app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : process.env.TRUST_PROXY);
-} else if (isVercel) {
-  app.set('trust proxy', 1);
-}
+const trustProxySetting = process.env.TRUST_PROXY;
+const trustProxy = trustProxySetting === 'true'
+  ? 1
+  : trustProxySetting === 'false'
+    ? false
+    : trustProxySetting || (isVercel ? 1 : false);
+app.set('trust proxy', trustProxy);
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  keyGenerator: (request) => ipKeyGenerator(request.ip),
   message: { error: 'Too many authentication attempts. Try again in 15 minutes.' }
 });
 app.use(cookieSession({

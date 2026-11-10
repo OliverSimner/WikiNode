@@ -191,14 +191,24 @@ test('Vercel admin session survives requests routed to a different function inst
 
   const setup = await fetch(`${firstInstance.baseUrl}/api/auth/first-admin`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Forwarded-Proto': 'https' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Forwarded-For': '203.0.113.5',
+      Forwarded: 'for=203.0.113.5;proto=https',
+      'X-Forwarded-Proto': 'https'
+    },
     body: JSON.stringify({ username: 'AdminTest', password: 'TemporaryAdminPassword123!' })
   });
   assert.equal(setup.status, 201);
   const cookie = (setup.headers.getSetCookie?.() || []).map((value) => value.split(';')[0]).join('; ');
   assert.ok(cookie);
 
-  const vercelHeaders = { Cookie: cookie, 'X-Forwarded-Proto': 'https' };
+  const vercelHeaders = {
+    Cookie: cookie,
+    'X-Forwarded-For': '203.0.113.5',
+    Forwarded: 'for=203.0.113.5;proto=https',
+    'X-Forwarded-Proto': 'https'
+  };
   const authStatus = await fetch(`${secondInstance.baseUrl}/api/auth/status`, { headers: vercelHeaders });
   assert.deepEqual((await authStatus.json()).user, { username: 'AdminTest', role: 'admin' });
   const overview = await fetch(`${secondInstance.baseUrl}/api/admin/overview`, { headers: vercelHeaders });
