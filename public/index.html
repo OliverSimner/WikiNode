@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f8f9fa">
+    <title>WikiNode</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Wiki navigation">
+        <a class="wordmark" href="#/wiki/home" aria-label="WikiNode home">
+          <span class="mark" aria-hidden="true">W</span>
+          <span class="wordmark-copy"><strong>WikiNode</strong><small>The Free Encyclopedia</small></span>
+        </a>
+        <div class="sidebar-label">Navigation</div>
+        <nav class="primary-nav">
+          <a href="#/wiki/home" id="home-link">Main page</a>
+          <a href="#/all">Contents</a>
+          <a href="#/recent">Recent changes</a>
+          <a href="#/wiki/about-wikinode">About WikiNode</a>
+        </nav>
+        <nav class="admin-nav" id="admin-nav" aria-label="Administration" hidden>
+          <div class="sidebar-label sidebar-section-label">Administration</div>
+          <a href="#/overview">Site overview</a>
+          <a href="#/accounts">Accounts</a>
+        </nav>
+        <div class="sidebar-label sidebar-section-label">Contribute</div>
+        <button class="new-page-button" id="new-page" type="button" hidden>Create a page</button>
+        <div class="sidebar-label sidebar-section-label">Pages</div>
+        <nav class="recent-links" id="sidebar-recent" aria-label="Recently edited pages"></nav>
+        <div class="sidebar-footer">A community-written wiki</div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <div class="topbar-spacer"></div>
+          <form class="search-form" id="search-form" role="search">
+            <input id="search-input" type="search" placeholder="Search WikiNode" autocomplete="off" aria-label="Search WikiNode">
+            <button type="submit" aria-label="Search">Search</button>
+            <div class="search-results" id="search-results" hidden></div>
+          </form>
+          <div class="topbar-links"><a href="#/recent">Contributions</a><div id="auth-actions"></div></div>
+        </header>
+        <div class="workspace" id="workspace" aria-live="polite">
+          <div class="loading-state">Opening the archive<span>.</span><span>.</span><span>.</span></div>
+        </div>
+        <footer class="page-footer"><span>WikiNode</span><span>Written together, kept in history.</span></footer>
+      </main>
+    </div>
+  </body>
+</html>
