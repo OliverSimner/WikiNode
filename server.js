@@ -12,6 +12,9 @@ const sanitizeHtml = require('sanitize-html');
 const app = express();
 const port = process.env.PORT === undefined ? 3000 : Number(process.env.PORT);
 const isVercel = process.env.VERCEL === '1';
+if (isVercel && !process.env.SESSION_SECRET) {
+  throw new Error('SESSION_SECRET is required on Vercel. Generate one with: openssl rand -hex 48');
+}
 const defaultDataDirectory = isVercel
   ? path.join(os.tmpdir(), 'wikinode-data')
   : path.join(__dirname, 'data');
@@ -147,7 +150,6 @@ if (process.platform !== 'win32') {
 }
 if (isVercel) {
   console.warn('WikiNode is using Vercel /tmp storage. Pages and accounts are temporary; configure external storage before production use.');
-  if (!process.env.SESSION_SECRET) console.warn('Set SESSION_SECRET in Vercel to keep session signing consistent across function instances.');
 }
 if (!fs.existsSync(dataFile)) {
   const now = new Date().toISOString();
@@ -180,6 +182,8 @@ if (!fs.existsSync(dataFile)) {
 app.use(express.json({ limit: '1mb' }));
 if (process.env.TRUST_PROXY) {
   app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : process.env.TRUST_PROXY);
+} else if (isVercel) {
+  app.set('trust proxy', 1);
 }
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -198,7 +202,12 @@ app.use(cookieSession({
 }));
 app.use((request, _response, next) => {
   const username = request.session?.username;
-  request.user = username ? readUsers()[username.toLowerCase()] || null : null;
+  if (isVercel) {
+    const role = request.session?.role;
+    request.user = username && ['admin', 'editor'].includes(role) ? { username, role } : null;
+  } else {
+    request.user = username ? readUsers()[username.toLowerCase()] || null : null;
+  }
   next();
 });
 app.use(express.static(path.join(__dirname, 'public')));
@@ -230,7 +239,7 @@ app.post('/api/auth/first-admin', authLimiter, async (request, response) => {
       createdAt: new Date().toISOString()
     };
     writeUsers(users);
-    request.session = { username };
+    request.session = { username, role: 'admin' };
     response.status(201).json({ username, role: 'admin' });
   } finally {
     setupInProgress = false;
@@ -243,7 +252,7 @@ app.post('/api/auth/login', authLimiter, async (request, response) => {
   if (!user || typeof password !== 'string' || !(await passwordMatches(password, user))) {
     return response.status(401).json({ error: 'The username or password is incorrect.' });
   }
-  request.session = { username: user.username };
+  request.session = { username: user.username, role: user.role };
   response.json({ username: user.username, role: user.role });
 });
 

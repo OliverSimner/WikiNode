@@ -143,3 +143,64 @@ test('admin setup, account roles, and page management are protected', async (con
   loginAttempt = await request('/api/auth/login', jsonOptions({ username: 'missing', password: 'incorrect' }));
   assert.equal(loginAttempt.status, 429);
 });
+
+test('Vercel admin session survives requests routed to a different function instance', async (context) => {
+  const firstDataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wikinode-vercel-a-'));
+  const secondDataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wikinode-vercel-b-'));
+  const sessionSecret = 'b'.repeat(96);
+
+  async function startInstance(dataDirectory) {
+    const server = spawn(process.execPath, ['server.js'], {
+      cwd: path.join(__dirname, '..'),
+      env: {
+        ...process.env,
+        VERCEL: '1',
+        NODE_ENV: 'production',
+        PORT: '0',
+        SESSION_SECRET: sessionSecret,
+        WIKINODE_DATA_DIR: dataDirectory
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let output = '';
+    server.stdout.setEncoding('utf8').on('data', (chunk) => { output += chunk; });
+    server.stderr.setEncoding('utf8').on('data', (chunk) => { output += chunk; });
+
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const port = Number(output.match(/running at http:\/\/localhost:(\d+)/)?.[1]);
+      if (port) return { server, baseUrl: `http://127.0.0.1:${port}` };
+      if (server.exitCode !== null) throw new Error(output || 'Vercel test instance exited before starting.');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    server.kill('SIGTERM');
+    throw new Error(`Vercel test instance did not start: ${output}`);
+  }
+
+  const firstInstance = await startInstance(firstDataDirectory);
+  const secondInstance = await startInstance(secondDataDirectory);
+  context.after(async () => {
+    firstInstance.server.kill('SIGTERM');
+    secondInstance.server.kill('SIGTERM');
+    await Promise.all([
+      once(firstInstance.server, 'exit').catch(() => {}),
+      once(secondInstance.server, 'exit').catch(() => {})
+    ]);
+    fs.rmSync(firstDataDirectory, { recursive: true, force: true });
+    fs.rmSync(secondDataDirectory, { recursive: true, force: true });
+  });
+
+  const setup = await fetch(`${firstInstance.baseUrl}/api/auth/first-admin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-Proto': 'https' },
+    body: JSON.stringify({ username: 'AdminTest', password: 'TemporaryAdminPassword123!' })
+  });
+  assert.equal(setup.status, 201);
+  const cookie = (setup.headers.getSetCookie?.() || []).map((value) => value.split(';')[0]).join('; ');
+  assert.ok(cookie);
+
+  const vercelHeaders = { Cookie: cookie, 'X-Forwarded-Proto': 'https' };
+  const authStatus = await fetch(`${secondInstance.baseUrl}/api/auth/status`, { headers: vercelHeaders });
+  assert.deepEqual((await authStatus.json()).user, { username: 'AdminTest', role: 'admin' });
+  const overview = await fetch(`${secondInstance.baseUrl}/api/admin/overview`, { headers: vercelHeaders });
+  assert.equal(overview.status, 200);
+});
